@@ -13,7 +13,8 @@ BATCH_SIZE = 32
 MAX_EPOCHS = 40
 PATIENCE = 10
 
-SAVE_PATH = 'saved_model/best_model.h5'
+SAVE_PATH = \
+    'saved_model/best_model.h5'
 
 
 def train_model():
