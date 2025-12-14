@@ -3,7 +3,7 @@ import os
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.models import load_model
 
-from dataset import create_dataframe, create_generators, perform_stratified_split
+from DataSet import create_dataframe, create_generators, perform_stratified_split
 from model import create_cnn_model
 
 IMAGE_SIZE = (256, 256)
