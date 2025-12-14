@@ -75,3 +75,20 @@ The evaluate.py script loads the saved model and runs it against the unbiased Te
 ```bash
 python code/evaluate.py
 ```
+###4. How to Run the UI
+
+The project includes a Streamlit-based web interface for image prediction, viewing evaluation results, and inspecting the category map.
+
+Step 1: Make Sure Dependencies Are Installed
+
+If you haven’t already, install Streamlit in your environment:
+```
+pip install streamlit pillow
+```
+Step 2: Launch the Streamlit App
+
+Run the following command from the project root (where app.py is located):
+```
+streamlit run app.py
+```
+
