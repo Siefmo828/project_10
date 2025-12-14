@@ -1,70 +1,71 @@
+# train.py
+import tensorflow as tf
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+from tensorflow.keras.optimizers import Adam
+from model import create_model
+from DataSet import load_data  # your dataset pipeline
 
-import os
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
-from tensorflow.keras.models import load_model
+# -------------------------------
+# CONFIG
+# -------------------------------
+MODEL_SAVE_PATH = 'saved_model/best_model.keras'
+BATCH_SIZE = 16
+EPOCHS_INITIAL = 10
+EPOCHS_FINE_TUNE = 10
+LOW_LR = 1e-5
 
-from DataSet import create_dataframe, create_generators, perform_stratified_split
-from model import create_cnn_model
-
-IMAGE_SIZE = (256, 256)
-INPUT_SHAPE = IMAGE_SIZE + (3,)
-NUM_CLASSES = 4
-BATCH_SIZE = 32
-MAX_EPOCHS = 40
-PATIENCE = 10
-
-SAVE_PATH = \
-    'saved_model/best_model.h5'
-
-
+# -------------------------------
+# TRAINING FUNCTION
+# -------------------------------
 def train_model():
-    print("1. Loading data...")
+    # 1️⃣ LOAD DATA
+    train_gen, val_gen, test_gen, class_labels = load_data(batch_size=BATCH_SIZE)
 
-    full_df = create_dataframe()
-    df_train, df_val, df_test = perform_stratified_split(full_df)
+    # 2️⃣ CREATE MODEL
+    model, base_model = create_model()
+    print("Initial model created.")
+    model.summary()
 
-    train_gen, val_gen, test_gen = create_generators(
-        df_train, df_val, df_test,
-        batch_size=BATCH_SIZE,
-        image_size=IMAGE_SIZE
-    )
+    # 3️⃣ CALLBACKS
+    early_stop = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
+    checkpoint = ModelCheckpoint(MODEL_SAVE_PATH, monitor='val_accuracy', save_best_only=True)
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2, min_lr=1e-7)
 
-    print(f"Total training images: {train_gen.samples}")
-    print(f"Total validation images: {val_gen.samples}")
-
-    print("\n2. Creating model architecture...")
-    model = create_cnn_model(input_shape=INPUT_SHAPE, num_classes=NUM_CLASSES)
-
-    print("\n3. Defining Callbacks...")
-    early_stop = EarlyStopping(
-        monitor='val_loss',
-        patience=PATIENCE,
-        verbose=1,
-        restore_best_weights=True
-    )
-
-    os.makedirs(os.path.dirname(SAVE_PATH), exist_ok=True)
-    checkpoint = ModelCheckpoint(
-        filepath=SAVE_PATH,
-        monitor='val_accuracy',
-        save_best_only=True,
-        verbose=1
-    )
-
-    callbacks_list = [early_stop, checkpoint]
-
-    print("\n4. Starting model training (Fit)...")
+    # 4️⃣ INITIAL TRAINING
     history = model.fit(
         train_gen,
-        epochs=MAX_EPOCHS,
         validation_data=val_gen,
-        callbacks=callbacks_list
+        epochs=EPOCHS_INITIAL,
+        callbacks=[early_stop, checkpoint, reduce_lr]
     )
+    print("Initial training complete. Best model saved to:", MODEL_SAVE_PATH)
 
-    print("\nTraining complete. The best model has been saved to:", SAVE_PATH)
+    # 5️⃣ FINE-TUNING
+    # Unfreeze last 20 layers
+    base_model.trainable = True
+    for layer in base_model.layers[:-20]:
+        layer.trainable = False
 
-    return history
+    # Recompile with low learning rate
+    model.compile(optimizer=Adam(learning_rate=LOW_LR),
+                  loss='categorical_crossentropy',
+                  metrics=['accuracy'])
+
+    history_fine = model.fit(
+        train_gen,
+        validation_data=val_gen,
+        epochs=EPOCHS_FINE_TUNE,
+        callbacks=[early_stop, checkpoint, reduce_lr]
+    )
+    print("Fine-tuning complete. Best model saved to:", MODEL_SAVE_PATH)
+
+    # Combine history dictionaries
+    history.history.update(history_fine.history)
+    return model, history, test_gen, class_labels
 
 
-if __name__ == '__main__':
+# -------------------------------
+# SAFE ENTRY POINT
+# -------------------------------
+if __name__ == "__main__":
     train_model()
